@@ -611,13 +611,37 @@ function EncyclScreen() {
 }
 
 // 도감 메인: 카드 한 장씩
+
+let cardTouchStartX = 0;
+let cardTouchStartY = 0;
+function cardTouchStart(e) {
+  cardTouchStartX = e.touches[0].clientX;
+  cardTouchStartY = e.touches[0].clientY;
+}
+function cardTouchEnd(e) {
+  const dx = e.changedTouches[0].clientX - cardTouchStartX;
+  const dy = e.changedTouches[0].clientY - cardTouchStartY;
+  // 가로 스와이프 (세로보다 가로가 더 큼)
+  if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) {
+    // 왼쪽 엣지에서의 스와이프는 뒤로가기로 처리되니 무시
+    if (cardTouchStartX < 40 && dx > 0) return;
+    if (dx < 0) {
+      // 왼쪽으로 스와이프 → 다음
+      nextCard();
+    } else {
+      // 오른쪽으로 스와이프 → 이전
+      prevCard();
+    }
+  }
+}
+
 function CardScreen() {
   const s = SOOLS[state.cardIdx];
   const fav = isFav('sools', s.id);
   const customImg = state.stats.customImages[s.id];
 
   return `
-    <div class="fade-in pb-8">
+    <div class="fade-in pb-8" id="card-swipe-area" ontouchstart="cardTouchStart(event)" ontouchend="cardTouchEnd(event)">
       ${Header(`${state.cardIdx + 1} / 11`, { 
         right: `<button onclick="toggleFav('sools', '${s.id}')" class="text-xl p-2">${fav ? '⭐' : '☆'}</button>` 
       })}
@@ -962,6 +986,26 @@ function CompareScreen() {
 // ============================================
 // 항목별 모아보기
 // ============================================
+
+function getSortedSools(field) {
+  const sools = [...SOOLS];
+  if (field === 'abv') {
+    return sools.sort((a, b) => a.abvNum - b.abvNum);
+  } else if (field === 'region') {
+    return sools.sort((a, b) => a.region.localeCompare(b.region, 'ko'));
+  } else if (field === 'maker') {
+    return sools.sort((a, b) => a.maker.localeCompare(b.maker, 'ko'));
+  } else if (field === 'master') {
+    return sools.sort((a, b) => {
+      if (!a.master && !b.master) return 0;
+      if (!a.master) return 1;
+      if (!b.master) return -1;
+      return parseInt(a.master.num) - parseInt(b.master.num);
+    });
+  }
+  return sools;
+}
+
 function FieldsScreen() {
   const f = state.fieldView;
   const tabs = [
@@ -991,7 +1035,7 @@ function FieldsScreen() {
       <!-- 항목 리스트 -->
       <div class="px-5">
         <div class="toss-card shadow-soft overflow-hidden">
-          ${SOOLS.map((s, i) => {
+          ${getSortedSools(f).map((s, i) => {
             let value = '';
             if (f === 'abv') value = `<span class="display-1" style="color: var(--primary);">${s.abv}</span>`;
             else if (f === 'region') value = `<span class="title-3">${s.regionDetail}</span>`;
@@ -1039,6 +1083,7 @@ function getFieldTip(f) {
 // 블라인드 테이스팅
 // ============================================
 function BlindScreen() {
+  // ============ INTRO ============
   if (state.blindStage === 'intro') {
     return `
       <div class="fade-in pb-8">
@@ -1049,64 +1094,67 @@ function BlindScreen() {
             <div class="text-center mb-6">
               <div class="text-5xl mb-3">🥃</div>
               <div class="title-1">실전 시뮬레이션</div>
-              <div class="caption mt-2">11종 중 5종 무작위 출제</div>
+              <div class="caption mt-2">11종 중 5종 무작위 · 실제 시트 그대로</div>
             </div>
             
             <div class="space-y-3 mb-6">
-              <div class="flex gap-3 p-3 rounded-xl" style="background: var(--bg);">
-                <div class="text-2xl">📋</div>
-                <div class="flex-1">
-                  <div class="title-3">시험 구성</div>
-                  <div class="caption mt-0.5">식별 60점 + 관능평가 40점</div>
-                </div>
+              <div class="p-4 rounded-xl" style="background: var(--bg);">
+                <div class="title-3 mb-2">📋 식별 60점</div>
+                <div class="caption">제품명(10) · 제조사(10) · 생산지역(10) · 원재료(20) · 살균여부/증류방식(10)</div>
               </div>
-              <div class="flex gap-3 p-3 rounded-xl" style="background: var(--bg);">
-                <div class="text-2xl">🎯</div>
-                <div class="flex-1">
-                  <div class="title-3">합격 기준</div>
-                  <div class="caption mt-0.5">블라인드+구술 총 60점 이상</div>
-                </div>
+              <div class="p-4 rounded-xl" style="background: var(--bg);">
+                <div class="title-3 mb-2">🎨 관능평가 40점</div>
+                <div class="caption">색·향·맛·세부향기(2개)·세부맛(2개)·총평</div>
               </div>
-              <div class="flex gap-3 p-3 rounded-xl" style="background: var(--bg);">
-                <div class="text-2xl">✏️</div>
-                <div class="flex-1">
-                  <div class="title-3">작성 규칙</div>
-                  <div class="caption mt-0.5">시(도), 구(군,읍)까지 / 라벨 그대로</div>
-                </div>
+              <div class="p-4 rounded-xl" style="background: var(--primary-soft);">
+                <div class="title-3 mb-2" style="color: var(--primary-dark);">✏️ 작성 규칙</div>
+                <div class="caption">시(도), 구(군·읍)까지 · 원재료는 라벨 그대로</div>
               </div>
             </div>
             
-            <button onclick="startBlind()" class="btn-primary">시작하기</button>
+            <button onclick="startBlind()" class="btn-primary">5종 무작위 시작</button>
           </div>
         </div>
       </div>
     `;
   }
 
+  // ============ RESULT ============
   if (state.blindStage === 'result') {
-    const session = state.stats.blindAnswers.slice(-5);
-    const correct = session.filter(a => a.correct).length;
-    const pct = Math.round((correct / 5) * 100);
+    const sessions = state.blindResults || [];
+    const totalScore = sessions.reduce((sum, s) => sum + s.score, 0);
+    const maxScore = sessions.length * 100;
+    const pct = maxScore > 0 ? Math.round((totalScore / maxScore) * 100) : 0;
     
     return `
       <div class="fade-in pb-8">
-        ${Header('결과', { back: false })}
+        ${Header('블라인드 결과', { back: false })}
         
         <div class="px-5 mt-4">
           <div class="hero-card shadow-soft text-center py-8" style="background: linear-gradient(135deg, ${pct >= 60 ? '#00C896' : '#F04452'} 0%, ${pct >= 60 ? '#00A678' : '#D63340'} 100%); color: white;">
             <div class="text-5xl mb-3">${pct >= 80 ? '🏆' : pct >= 60 ? '😊' : '💪'}</div>
-            <div class="display-1">${correct}/5</div>
-            <div class="text-lg opacity-90 mt-2">정답률 ${pct}%</div>
-            <div class="text-sm opacity-80 mt-2">${pct >= 80 ? '훌륭해요!' : pct >= 60 ? '합격선!' : '더 연습해보세요'}</div>
+            <div class="display-1">${totalScore}<span class="text-2xl opacity-70">/${maxScore}</span></div>
+            <div class="text-lg opacity-90 mt-2">평균 ${pct}점</div>
+            <div class="text-sm opacity-80 mt-2">${pct >= 60 ? '합격선 통과! 🎉' : '60점 이상 필요해요'}</div>
           </div>
         </div>
 
         <div class="px-5 mt-4 mb-6">
           <div class="toss-card shadow-soft overflow-hidden">
-            ${session.map((a, i) => `
-              <div class="flex items-center p-4 ${i > 0 ? '' : ''}" style="${i > 0 ? 'border-top: 1px solid var(--line-soft);' : ''}">
-                <div class="text-2xl mr-3">${a.correct ? '✅' : '❌'}</div>
-                <div class="flex-1 title-3">${a.soolName}</div>
+            ${sessions.map((s, i) => `
+              <div class="p-4" style="${i > 0 ? 'border-top: 1px solid var(--line-soft);' : ''}">
+                <div class="flex items-center justify-between mb-2">
+                  <div class="title-3">${i+1}. ${s.soolName}</div>
+                  <div class="title-3" style="color: ${s.score >= 60 ? 'var(--success)' : 'var(--error)'};">${s.score}/100</div>
+                </div>
+                <div class="caption">
+                  식별 ${s.idScore}/60 · 관능평가 ${s.tasteScore}/40
+                </div>
+                ${s.wrongFields.length > 0 ? `
+                  <div class="caption mt-1" style="color: var(--error);">
+                    오답: ${s.wrongFields.join(', ')}
+                  </div>
+                ` : ''}
               </div>
             `).join('')}
           </div>
@@ -1122,73 +1170,203 @@ function BlindScreen() {
     `;
   }
 
+  // ============ QUIZ (시트 입력) ============
   const q = state.blindQs[state.blindIdx];
   const ans = state.blindAns[state.blindIdx] || {};
-  const opts = state.blindOpts[state.blindIdx];
-  const tertiaryCorrect = q.sterilized || q.distillation;
-  const tertiaryLabel = q.category === '증류주' ? '증류방식' : '살균여부';
-
+  const isDistilled = q.category === '증류주';
+  
+  // 채점 결과
+  const showing = state.blindShow;
+  
   return `
     <div class="fade-in pb-8">
-      ${Header(`${state.blindIdx + 1} / 5`)}
+      ${Header(`${state.blindIdx + 1} / 5번 시료`)}
       
       <div class="px-5">
-        <div class="progress-track mb-6">
+        <div class="progress-track mb-4">
           <div class="progress-fill" style="width: ${(state.blindIdx + 1) / 5 * 100}%"></div>
         </div>
 
-        <div class="toss-card shadow-soft p-5 mb-4 text-center">
-          <div class="text-5xl mb-2">${q.emoji}</div>
-          <div class="caption">시험과목</div>
-          <div class="title-3 mt-1">${q.category}</div>
+        <!-- 시료 카드 (블라인드) -->
+        <div class="toss-card shadow-soft p-4 mb-4 text-center" style="background: linear-gradient(135deg, #1B64DA 0%, #3182F6 100%); color: white;">
+          <div class="text-4xl mb-2">${showing ? q.emoji : '❓'}</div>
+          <div class="text-sm opacity-90">시료 #${state.blindIdx + 1}</div>
+          <div class="title-2 mt-1">${showing ? q.name : '미지의 술'}</div>
+          <div class="text-xs opacity-80 mt-1">${q.category}</div>
         </div>
 
-        ${BlindField('🏷 제품명', 'name', opts.name, q.name, ans)}
-        ${BlindField('📍 생산지역', 'region', opts.region, q.region, ans)}
-        ${BlindField('🧪 ' + tertiaryLabel, 'sterilized', opts.sterilized, tertiaryCorrect, ans)}
+        <!-- 식별 영역 (60점) -->
+        <div class="toss-card shadow-soft p-4 mb-3">
+          <div class="flex items-center justify-between mb-3">
+            <div class="title-3">📋 식별</div>
+            <div class="text-sm font-bold" style="color: var(--primary);">60점</div>
+          </div>
+          
+          ${BlindSelectField('제품명 (10)', 'name', q.name, ans, makeOptions(q.name, SOOLS.map(s => s.name)))}
+          ${BlindSelectField('제조사 (10)', 'maker', q.maker, ans, makeOptions(q.maker, [...new Set(SOOLS.map(s => s.maker))]))}
+          ${BlindSelectField('생산지역 (10)', 'region', q.regionDetail, ans, makeOptions(q.regionDetail, [...new Set(SOOLS.map(s => s.regionDetail))]))}
+          ${BlindSelectField('원재료 (20)', 'ingredients', q.ingredients, ans, makeOptions(q.ingredients, SOOLS.map(s => s.ingredients)))}
+          ${BlindSelectField(
+            (isDistilled ? '증류방식' : '살균여부') + ' (10)',
+            'sterilized',
+            isDistilled ? q.distillation : q.sterilized,
+            ans,
+            isDistilled ? ['감압증류', '상압증류', '혼합증류'] : ['비살균(생)', '살균', '살균(멸균주)']
+          )}
+        </div>
 
-        ${state.blindShow ? `
+        <!-- 관능평가 (40점) -->
+        <div class="toss-card shadow-soft p-4 mb-3">
+          <div class="flex items-center justify-between mb-3">
+            <div class="title-3">🎨 관능평가</div>
+            <div class="text-sm font-bold" style="color: var(--primary);">40점</div>
+          </div>
+          
+          ${isDistilled ? `
+            ${BlindSelectField('투명도 (8)', 'clarity', q.color, ans, ['매우 맑고 깨끗함', '맑고 깨끗함', '중간', '탁함', '매우 탁함'])}
+            ${BlindSelectField('향의 강도 (3)', 'aromaIntensity', 
+              ['뚜렷한 향', '긍정적인 향', '중간', '미미한 향', '전혀 없음'][2],
+              ans,
+              ['뚜렷한 향', '긍정적인 향', '중간', '미미한 향', '전혀 없음'])}
+            ${BlindMultiSelect('세부 향기 2개 (7)', 'aromaDetails', q.aromas, ans, getAromaPool(q))}
+            ${BlindSelectField('맛 (3)', 'tasteType', '깔끔한 맛', ans, ['청량감', '깔끔한 맛', '자극적인 맛', '톡쏘는 맛', '부드러운 맛'])}
+            ${BlindSelectField('밀도 (3)', 'density', q.density, ans, ['매우 가벼움', '가벼움', '중간', '진함', '매우 진함'])}
+            ${BlindSelectField('뒷맛 (3)', 'aftertaste', '보통(5~4초)', ans, ['짧음(3초↓)', '보통(5~4초)', '오래감(6~7초)', '매우 오래감(8초↑)'])}
+            ${BlindSelectField('균형 (5)', 'balance', '좋음', ans, ['완전함', '좋음', '보통', '불균형'])}
+            ${BlindSelectField('총평 (8)', 'overall', '좋음', ans, ['뛰어남', '좋음', '보통', '열등함', '조잡함'])}
+          ` : `
+            ${BlindSelectField('색농도 (2)', 'colorDensity', '중간', ans, ['매우 엷음', '엷음', '중간', '진함', '매우 진함'])}
+            ${BlindSelectField('색상 (2)', 'colorTone', q.color, ans, ['흰색', '노란빛 띤 흰색', '엷은 노란색', '노란색', '붉은색'])}
+            ${BlindSelectField('점성도 (2)', 'viscosity', '중간', ans, ['기름진(Oilly)', '진함', '중간', '묽음', '약발포성'])}
+            ${BlindSelectField('향의 상태 (1)', 'aromaState', '좋음', ans, ['좋음', '좋지 않음'])}
+            ${BlindSelectField('아로마 (2)', 'aromaIntensity', '중간', ans, ['매우 약함', '약함', '중간', '강함', '매우 강함'])}
+            ${BlindMultiSelect('세부 향기 2개 (8)', 'aromaDetails', q.aromas, ans, getAromaPool(q))}
+            ${BlindSelectField('단맛 (2)', 'sweetness', q.sweetness, ans, ['매우 약함', '약함', '중간', '강함', '매우 강함'])}
+            ${BlindSelectField('신맛 (2)', 'sourness', q.sourness, ans, ['매우 약함', '약함', '중간', '강함', '매우 강함'])}
+            ${BlindSelectField('밀도 (2)', 'density', q.density, ans, ['매우 가벼움', '가벼움', '중간', '진함', '매우 진함'])}
+            ${BlindSelectField('뒷맛 (2)', 'aftertaste', '보통(5~4초)', ans, ['짧음(3초↓)', '보통(5~4초)', '오래감(6~7초)', '매우 오래감(8초↑)'])}
+            ${BlindSelectField('균형 (2)', 'balance', '좋음', ans, ['완전함', '좋음', '보통', '불균형'])}
+            ${BlindMultiSelect('세부 맛 2개 (' + (q.category === '약주·청주' ? '6' : '8') + ')', 'tasteDetails', getTasteDetails(q), ans, ['단맛', '신맛', '떫은맛', '청량감', '감칠맛', '쓴맛', '짠맛', '부드러운맛', '자극적인맛'])}
+            ${BlindSelectField('총평 (5)', 'overall', '좋음', ans, ['뛰어남', '좋음', '보통', '열등함', '조잡함'])}
+          `}
+        </div>
+
+        ${showing ? `
+          <!-- 채점 결과 -->
           <div class="toss-card shadow-soft p-4 mb-4" style="background: var(--primary-soft);">
-            <div class="title-3 mb-2" style="color: var(--primary-dark);">📌 추가 정보</div>
-            <div class="text-sm space-y-1" style="color: var(--text);">
-              <div>제조사: <b>${q.maker}</b></div>
-              <div>원재료: ${q.ingredients}</div>
-              <div>도수: ${q.abv}</div>
-              <div class="title-3 mt-2 pt-2" style="border-top: 1px solid rgba(0,0,0,0.05); color: var(--primary-dark);">${q.keyword}</div>
+            <div class="title-3 mb-3" style="color: var(--primary-dark);">📊 채점 결과</div>
+            <div class="space-y-2 text-sm" style="color: var(--text);">
+              <div class="flex justify-between"><span>식별 점수</span><b>${state.blindCurrentScore.idScore}/60</b></div>
+              <div class="flex justify-between"><span>관능평가 점수</span><b>${state.blindCurrentScore.tasteScore}/40</b></div>
+              <div class="flex justify-between pt-2 mt-2" style="border-top: 1px solid rgba(0,0,0,0.1);"><span class="font-bold">총점</span><b style="color: ${state.blindCurrentScore.score >= 60 ? 'var(--success)' : 'var(--error)'};">${state.blindCurrentScore.score}/100</b></div>
             </div>
           </div>
         ` : ''}
 
-        ${!state.blindShow ? `
-          <button onclick="checkBlind()" ${!ans.name || !ans.region || !ans.sterilized ? 'disabled' : ''} class="btn-primary" style="${(!ans.name || !ans.region || !ans.sterilized) ? 'background: var(--line); color: var(--text-mute);' : ''}">
-            정답 확인
-          </button>
+        ${!showing ? `
+          <button onclick="checkBlind()" class="btn-primary">채점하기</button>
         ` : `
-          <button onclick="nextBlind()" class="btn-primary">${state.blindIdx < 4 ? '다음 →' : '결과 보기'}</button>
+          <button onclick="nextBlind()" class="btn-primary">${state.blindIdx < 4 ? '다음 시료 →' : '최종 결과 보기'}</button>
         `}
       </div>
     </div>
   `;
 }
 
-function BlindField(label, field, options, correct, ans) {
+// 단일 선택 필드
+function BlindSelectField(label, field, correctValue, ans, options) {
+  const showing = state.blindShow;
+  const shuffled = options.length > 4 ? options : [...options];
+  
   return `
-    <div class="toss-card shadow-soft p-4 mb-3">
-      <div class="title-3 mb-3">${label}</div>
-      <div class="space-y-2">
-        ${options.map(opt => {
-          let style = 'background: var(--bg); color: var(--text);';
-          if (state.blindShow) {
-            if (opt === correct) style = 'background: var(--primary); color: white;';
-            else if (ans[field] === opt) style = 'background: #FEE6E8; color: var(--error);';
-          } else if (ans[field] === opt) {
-            style = 'background: var(--primary); color: white;';
+    <div class="mb-3 pb-3" style="border-bottom: 1px solid var(--line-soft);">
+      <div class="label mb-2">${label}</div>
+      <div class="flex flex-wrap gap-1.5">
+        ${shuffled.map(opt => {
+          const isAnswer = ans[field] === opt;
+          const isCorrect = opt === correctValue;
+          let style = 'background: var(--bg); color: var(--text-soft);';
+          
+          if (showing) {
+            if (isCorrect) style = 'background: var(--success); color: white; font-weight: 700;';
+            else if (isAnswer) style = 'background: #FEE6E8; color: var(--error);';
+          } else if (isAnswer) {
+            style = 'background: var(--primary); color: white; font-weight: 600;';
           }
-          return `<button onclick="selectBlind('${field}', ${JSON.stringify(opt).replace(/"/g, '&quot;')})" ${state.blindShow ? 'disabled' : ''} class="w-full text-left p-3 rounded-xl text-sm font-medium" style="${style}">${opt}${state.blindShow && opt === correct ? ' ✓' : ''}</button>`;
+          
+          return `<button onclick="selectBlind('${field}', ${JSON.stringify(opt).replace(/"/g, '&quot;')})" ${showing ? 'disabled' : ''} class="px-3 py-2 rounded-lg text-xs" style="${style}">${opt}${showing && isCorrect ? ' ✓' : ''}</button>`;
         }).join('')}
       </div>
     </div>
   `;
+}
+
+// 다중 선택 필드 (세부 향기/맛 - 2개 선택)
+function BlindMultiSelect(label, field, correctValues, ans, options) {
+  const showing = state.blindShow;
+  const selected = ans[field] || [];
+  
+  return `
+    <div class="mb-3 pb-3" style="border-bottom: 1px solid var(--line-soft);">
+      <div class="label mb-2">${label} (2개 선택)</div>
+      <div class="flex flex-wrap gap-1.5">
+        ${options.map(opt => {
+          const isSelected = selected.includes(opt);
+          const isCorrect = correctValues.includes(opt);
+          let style = 'background: var(--bg); color: var(--text-soft);';
+          
+          if (showing) {
+            if (isCorrect && isSelected) style = 'background: var(--success); color: white; font-weight: 700;';
+            else if (isCorrect) style = 'background: var(--primary-soft); color: var(--primary-dark); font-weight: 600;';
+            else if (isSelected) style = 'background: #FEE6E8; color: var(--error);';
+          } else if (isSelected) {
+            style = 'background: var(--primary); color: white; font-weight: 600;';
+          }
+          
+          return `<button onclick="toggleMultiSelect('${field}', ${JSON.stringify(opt).replace(/"/g, '&quot;')})" ${showing ? 'disabled' : ''} class="px-3 py-2 rounded-lg text-xs" style="${style}">${opt}${showing && isCorrect ? ' ✓' : ''}</button>`;
+        }).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function toggleMultiSelect(field, value) {
+  if (!state.blindAns[state.blindIdx]) state.blindAns[state.blindIdx] = {};
+  if (!state.blindAns[state.blindIdx][field]) state.blindAns[state.blindIdx][field] = [];
+  
+  const arr = state.blindAns[state.blindIdx][field];
+  const i = arr.indexOf(value);
+  if (i >= 0) {
+    arr.splice(i, 1);
+  } else if (arr.length < 2) {
+    arr.push(value);
+  }
+  render();
+}
+
+// 향기 풀 (정답 + 다른 향기들 섞어서)
+function getAromaPool(sool) {
+  const allAromas = Object.values(AROMA_CATEGORIES).flat();
+  const correctAromas = sool.aromas;
+  const others = allAromas.filter(a => !correctAromas.includes(a)).sort(() => Math.random() - 0.5).slice(0, 6);
+  return [...correctAromas, ...others].sort(() => Math.random() - 0.5);
+}
+
+function getTasteDetails(sool) {
+  const tasteMap = {
+    'neurin': ['단맛', '부드러운맛'],
+    'bumpyo': ['청량감', '감칠맛'],
+    'jangsu': ['단맛', '감칠맛'],
+    'baekryeon': ['부드러운맛', '단맛'],
+    'kooksoondang': ['청량감', '단맛'],
+    'sogokju': ['단맛', '감칠맛'],
+    'solsong': ['감칠맛', '부드러운맛'],
+    'damgold': ['신맛', '청량감'],
+    'munbae': ['자극적인맛', '청량감'],
+    'gamuchi': ['부드러운맛', '청량감'],
+    'andong': ['자극적인맛', '감칠맛'],
+  };
+  return tasteMap[sool.id] || ['단맛', '감칠맛'];
 }
 
 function startBlind() {
@@ -1196,17 +1374,7 @@ function startBlind() {
   state.blindIdx = 0;
   state.blindAns = {};
   state.blindShow = false;
-  state.blindOpts = {};
-  state.blindQs.forEach((q, i) => {
-    state.blindOpts[i] = {
-      name: makeOptions(q.name, SOOLS.map(s => s.name)),
-      region: makeOptions(q.region, [...new Set(SOOLS.map(s => s.region))]),
-      sterilized: makeOptions(
-        q.sterilized || q.distillation,
-        q.category === '증류주' ? ['감압증류', '상압증류'] : ['비살균(생)', '살균', '살균(멸균주)']
-      ),
-    };
-  });
+  state.blindResults = [];
   state.blindStage = 'quiz';
   render();
 }
@@ -1218,13 +1386,79 @@ function selectBlind(field, value) {
 }
 
 function checkBlind() {
-  state.blindShow = true;
   const q = state.blindQs[state.blindIdx];
   const a = state.blindAns[state.blindIdx] || {};
-  const correct = a.name === q.name && a.region === q.region && a.sterilized === (q.sterilized || q.distillation);
-  state.stats.blindAnswers.push({ soolId: q.id, soolName: q.name, correct, timestamp: Date.now() });
-  if (correct) {
-    ['maker', 'region', 'sterilized'].forEach(f => recordMaster(q.id, f));
+  const isDistilled = q.category === '증류주';
+  
+  // 식별 점수 (60점)
+  let idScore = 0;
+  const wrongFields = [];
+  
+  if (a.name === q.name) idScore += 10; else wrongFields.push('제품명');
+  if (a.maker === q.maker) idScore += 10; else wrongFields.push('제조사');
+  if (a.region === q.regionDetail) idScore += 10; else wrongFields.push('생산지역');
+  if (a.ingredients === q.ingredients) idScore += 20; else wrongFields.push('원재료');
+  const tertCorrect = isDistilled ? q.distillation : q.sterilized;
+  if (a.sterilized === tertCorrect) idScore += 10; else wrongFields.push(isDistilled ? '증류방식' : '살균여부');
+  
+  // 관능평가 점수 (40점) - 간단히 정답 일치 여부로 점수 부여
+  let tasteScore = 0;
+  
+  if (isDistilled) {
+    // 증류주: 투명도8 + 향강도3 + 세부향7 + 맛3 + 밀도3 + 뒷맛3 + 균형5 + 총평8 = 40
+    if (a.clarity === q.color) tasteScore += 8;
+    if (a.aromaIntensity) tasteScore += 3;
+    const detailMatch = (a.aromaDetails || []).filter(x => q.aromas.includes(x)).length;
+    tasteScore += detailMatch * 3 + (detailMatch === 2 ? 1 : 0);
+    if (a.tasteType) tasteScore += 3;
+    if (a.density === q.density) tasteScore += 3;
+    if (a.aftertaste) tasteScore += 3;
+    if (a.balance) tasteScore += 5;
+    if (a.overall) tasteScore += 8;
+  } else {
+    // 막걸리/약주: 색농도2 + 색상2 + 점성2 + 향상태1 + 향강도2 + 세부향8 + 단맛2 + 신맛2 + 밀도2 + 뒷맛2 + 균형2 + 세부맛(6or8) + 총평5
+    if (a.colorDensity) tasteScore += 2;
+    if (a.colorTone === q.color) tasteScore += 2;
+    if (a.viscosity) tasteScore += 2;
+    if (a.aromaState === '좋음') tasteScore += 1;
+    if (a.aromaIntensity) tasteScore += 2;
+    const detailMatch = (a.aromaDetails || []).filter(x => q.aromas.includes(x)).length;
+    tasteScore += detailMatch * 4;
+    if (a.sweetness === q.sweetness) tasteScore += 2;
+    if (a.sourness === q.sourness) tasteScore += 2;
+    if (a.density === q.density) tasteScore += 2;
+    if (a.aftertaste) tasteScore += 2;
+    if (a.balance) tasteScore += 2;
+    const correctTastes = getTasteDetails(q);
+    const tasteDetailMatch = (a.tasteDetails || []).filter(x => correctTastes.includes(x)).length;
+    const tasteDetailPts = q.category === '약주·청주' ? 3 : 4;
+    tasteScore += tasteDetailMatch * tasteDetailPts;
+    if (a.overall) tasteScore += 5;
+  }
+  
+  if (tasteScore > 40) tasteScore = 40;
+  
+  const totalScore = idScore + tasteScore;
+  
+  state.blindCurrentScore = { idScore, tasteScore, score: totalScore };
+  state.blindShow = true;
+  
+  if (!state.blindResults) state.blindResults = [];
+  state.blindResults.push({
+    soolId: q.id,
+    soolName: q.name,
+    idScore,
+    tasteScore,
+    score: totalScore,
+    wrongFields,
+  });
+  
+  state.stats.blindAnswers.push({ 
+    soolId: q.id, soolName: q.name, correct: idScore >= 50, score: totalScore, timestamp: Date.now() 
+  });
+  
+  if (idScore >= 50) {
+    ['maker', 'region', 'sterilized', 'ingredients'].forEach(f => recordMaster(q.id, f));
   }
   saveStats();
   render();
